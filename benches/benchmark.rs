@@ -33,9 +33,9 @@ pub fn bench_serialize(c: &mut Criterion) {
     let mut i = 1;
     let step = 10;
     while i <= DATASIZE {
-        let rows = generate_data(&DATATYPES, i);
+        let (rows, cols) = generate_data(&DATATYPES, i);
         group.bench_with_input(BenchmarkId::new("Parquet", i), &i, |b, _| {
-            b.iter(|| parquet_serialize(&DATATYPES, &rows, parquet::basic::Compression::SNAPPY))
+            b.iter(|| parquet_serialize(&DATATYPES, &cols, parquet::basic::Compression::SNAPPY))
         });
         group.bench_with_input(BenchmarkId::new("Avro", i), &i, |b, _| {
             b.iter(|| avro_serialize(&DATATYPES, &rows, Codec::Deflate))
@@ -45,19 +45,8 @@ pub fn bench_serialize(c: &mut Criterion) {
     group.finish();
 }
 
-pub fn serialize_benchmark(c: &mut Criterion) {
-    let rows = generate_data(&DATATYPES, DATASIZE);
-    c.bench_function("parquet serialize", |b| {
-        b.iter(|| parquet_serialize(&DATATYPES, &rows, parquet::basic::Compression::SNAPPY))
-    });
-    let rows = generate_data(&DATATYPES, DATASIZE);
-    c.bench_function("avro serialize", |b| {
-        b.iter(|| avro_serialize(&DATATYPES, &rows, Codec::Null))
-    });
-}
-
 pub fn write_benchmark(c: &mut Criterion) {
-    let rows = generate_data(&DATATYPES, DATASIZE);
+    let (rows, cols) = generate_data(&DATATYPES, DATASIZE);
     c.bench_function("parquet write", |b| {
         b.iter(|| {
             parquet_serialized_write(
@@ -69,8 +58,6 @@ pub fn write_benchmark(c: &mut Criterion) {
         })
     });
     parquet_read("sample.parquet");
-
-    let rows = generate_data(&DATATYPES, DATASIZE);
     c.bench_function("avro write", |b| {
         b.iter(|| avro_serialized_write("sample.avro", &DATATYPES, &rows, Codec::Null))
     });
