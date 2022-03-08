@@ -1,0 +1,21 @@
+[package]
+name = "taosx_data_format_bench"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rand = "0.8.5"
+parquet = "9.1.0"
+avro-rs="0.13.0"
+libtaos="*"
+bstr="0.2.17"
+criterion="0.3"
+serde_json = "1.0.79"
+lazy_static = "1.4.0"
+paste = "1.0.6"
+
+[[bench]]
+name = "benchmark"
+harness = false
