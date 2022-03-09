@@ -8,7 +8,7 @@ use taosx_data_format_bench::{
 
 extern crate lazy_static;
 lazy_static::lazy_static! {
-    static ref DATATYPES: Vec<&'static str> = vec![
+    pub static ref DATATYPES: Vec<&'static str> = vec![
         "timestamp",
         "tinyint",
         "utinyint",
@@ -26,7 +26,7 @@ lazy_static::lazy_static! {
     ];
 }
 
-const DATASIZE: u32 = 10000;
+pub const DATASIZE: u32 = 10000;
 
 pub fn bench_serialize(c: &mut Criterion) {
     let mut group = c.benchmark_group("Serialize");
@@ -45,25 +45,31 @@ pub fn bench_serialize(c: &mut Criterion) {
     group.finish();
 }
 
-pub fn write_benchmark(c: &mut Criterion) {
-    let (rows, cols) = generate_data(&DATATYPES, DATASIZE);
-    c.bench_function("parquet write", |b| {
-        b.iter(|| {
-            parquet_serialized_write(
-                "sample.parquet",
-                &DATATYPES,
-                &rows,
-                parquet::basic::Compression::SNAPPY,
-            )
-        })
-    });
-    parquet_read("sample.parquet");
-    c.bench_function("avro write", |b| {
-        b.iter(|| avro_serialized_write("sample.avro", &DATATYPES, &rows, Codec::Null))
-    });
-    avro_read("sample.avro");
+pub fn bench_write(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Write");
+    let mut i = 1;
+    let step = 10;
+    while i <= DATASIZE {
+        let (rows, cols) = generate_data(&DATATYPES, i);
+        group.bench_with_input(BenchmarkId::new("Parquet", i), &i, |b, _| {
+            b.iter(|| {
+                parquet_serialized_write(
+                    "sample.parquet",
+                    &DATATYPES,
+                    &cols,
+                    parquet::basic::Compression::SNAPPY,
+                );
+            })
+        });
+        parquet_read("sample.parquet");
+        group.bench_with_input(BenchmarkId::new("Avro", i), &i, |b, _| {
+            b.iter(|| avro_serialized_write("sample.avro", &DATATYPES, &rows, Codec::Deflate))
+        });
+        avro_read("sample.avro");
+        i *= step;
+    }
+    group.finish();
 }
 
-// criterion_group!(benches, serialize_benchmark, write_benchmark);
-criterion_group!(benches, bench_serialize);
+criterion_group!(benches, bench_write);
 criterion_main!(benches);

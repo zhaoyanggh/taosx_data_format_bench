@@ -81,6 +81,7 @@ pub fn avro_serialized_write(
     rows: &Vec<Vec<Field>>,
     compression: Codec,
 ) {
+    fs::remove_file(filename).unwrap();
     let path = Path::new(filename);
     let mut file = fs::File::create(&path).unwrap();
     let schema = generate_avro_schema(data_types);
@@ -117,7 +118,7 @@ pub fn avro_serialized_write(
     file.write(&input).unwrap();
 }
 
-pub fn avro_read(filename: &str) {
+pub fn avro_read(filename: &str) -> u32 {
     let mut count = 0;
     let f = File::open(filename).unwrap();
     let buffered_reader = BufReader::new(f);
@@ -133,5 +134,5 @@ pub fn avro_read(filename: &str) {
             _ => unreachable!(),
         }
     }
-    println!("avro read {} rows", count);
+    count
 }

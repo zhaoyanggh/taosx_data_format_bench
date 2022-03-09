@@ -255,9 +255,10 @@ pub fn parquet_serialize(data_types: &Vec<&str>, cols: &Vec<Vec<Field>>, compres
 pub fn parquet_serialized_write(
     filename: &str,
     data_types: &Vec<&str>,
-    rows: &Vec<Vec<Field>>,
+    cols: &Vec<Vec<Field>>,
     compression: Compression,
 ) {
+    fs::remove_file(filename).unwrap();
     let path = Path::new(filename);
     let file = fs::File::create(&path).unwrap();
     let props = Arc::new(
@@ -267,110 +268,122 @@ pub fn parquet_serialized_write(
     );
     let schema = generate_parquet_schema(data_types);
     let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
-    for row in rows {
-        let mut row_group_writer = writer.next_row_group().unwrap();
-        for field in row {
-            let field = (*field).clone();
-            let data_writer = row_group_writer.next_column().unwrap();
-            if let Some(mut writer) = data_writer {
-                match writer {
-                    ColumnWriter::Int32ColumnWriter(ref mut typed) => {
-                        let values;
-                        match field {
-                            Field::Null => todo!(),
+    let mut row_group_writer = writer.next_row_group().unwrap();
+    for col in cols {
+        let data_writer = row_group_writer.next_column().unwrap();
+        if let Some(mut writer) = data_writer {
+            let mut def_level = vec![];
+            match writer {
+                ColumnWriter::BoolColumnWriter(ref mut typed) => {
+                    let mut values = vec![];
+                    for field in col {
+                        def_level.push(1);
+                        values.push(*field.to_owned().as_bool().unwrap());
+                    }
+                    typed
+                        .write_batch(&values[..], Some(&def_level), None)
+                        .unwrap();
+                }
+                ColumnWriter::Int32ColumnWriter(ref mut typed) => {
+                    let mut values = vec![];
+                    for field in col {
+                        def_level.push(1);
+                        match *field {
                             Field::TinyInt(v) => {
-                                values = vec![v as i32];
-                            }
-                            Field::UTinyInt(v) => {
-                                values = vec![v as i32];
+                                values.push(v as i32);
                             }
                             Field::SmallInt(v) => {
-                                values = vec![v as i32];
-                            }
-                            Field::USmallInt(v) => {
-                                values = vec![v as i32];
+                                values.push(v as i32);
                             }
                             Field::Int(v) => {
-                                values = vec![v];
+                                values.push(v as i32);
+                            }
+                            Field::UTinyInt(v) => {
+                                values.push(v as i32);
+                            }
+                            Field::USmallInt(v) => {
+                                values.push(v as i32);
                             }
                             Field::UInt(v) => {
-                                values = vec![v as i32];
+                                values.push(v as i32);
                             }
-                            _ => unreachable!(
-                                "unexpected data type, please contact the author to fix!"
-                            ),
+                            _ => unreachable!(),
                         }
-
-                        typed.write_batch(&values[..], None, None).unwrap();
                     }
-                    ColumnWriter::BoolColumnWriter(ref mut typed) => {
-                        let values = vec![*field.as_bool().unwrap()];
-                        typed.write_batch(&values[..], None, None).unwrap();
-                    }
-                    ColumnWriter::Int64ColumnWriter(ref mut typed) => {
-                        let values;
-                        match field {
-                            Field::Null => todo!(),
-                            Field::BigInt(v) => {
-                                values = vec![v];
-                            }
-                            Field::Timestamp(v) => {
-                                values = vec![v.as_raw_timestamp()];
-                            }
-                            Field::UBigInt(v) => {
-                                values = vec![v as i64];
-                            }
-                            _ => unreachable!(
-                                "unexpected data type, please contact the author to fix!"
-                            ),
-                        }
-                        typed.write_batch(&values[..], None, None).unwrap();
-                    }
-                    ColumnWriter::FloatColumnWriter(ref mut typed) => {
-                        let values = vec![*field.as_float().unwrap()];
-                        typed.write_batch(&values[..], None, None).unwrap();
-                    }
-                    ColumnWriter::DoubleColumnWriter(ref mut typed) => {
-                        let values = vec![*field.as_double().unwrap()];
-                        typed.write_batch(&values[..], None, None).unwrap();
-                    }
-                    ColumnWriter::ByteArrayColumnWriter(ref mut typed) => {
-                        let values;
-                        match field {
-                            Field::Null => todo!(),
-                            Field::Binary(v) => {
-                                let binary_data = (&*v).to_vec();
-                                values = vec![parquet::data_type::ByteArray::from(binary_data)];
-                            }
-                            Field::NChar(_) => {
-                                values = vec![parquet::data_type::ByteArray::from(
-                                    field.as_nchar().unwrap(),
-                                )];
-                            }
-                            _ => unreachable!(
-                                "unexpected data type, please contact the author to fix!"
-                            ),
-                        }
-
-                        typed.write_batch(&values[..], None, None).unwrap();
-                    }
-                    ColumnWriter::FixedLenByteArrayColumnWriter(_) => todo!(),
-                    _ => unreachable!("unexpected data type, please contact the author to fix!"),
+                    typed
+                        .write_batch(&values[..], Some(&def_level), None)
+                        .unwrap();
                 }
-                row_group_writer.close_column(writer).unwrap();
+                ColumnWriter::Int64ColumnWriter(ref mut typed) => {
+                    let mut values = vec![];
+                    for field in col {
+                        def_level.push(1);
+                        let field = (*field).clone();
+                        match field {
+                            Field::BigInt(v) => values.push(v),
+                            Field::Timestamp(v) => values.push(v.as_raw_timestamp()),
+                            Field::UBigInt(v) => values.push(v as i64),
+                            _ => unreachable!(),
+                        }
+                    }
+                    typed
+                        .write_batch(&values[..], Some(&def_level), None)
+                        .unwrap();
+                }
+                ColumnWriter::FloatColumnWriter(ref mut typed) => {
+                    let mut values = vec![];
+                    for field in col {
+                        def_level.push(1);
+                        values.push(*field.as_float().unwrap());
+                    }
+                    typed
+                        .write_batch(&values[..], Some(&def_level), None)
+                        .unwrap();
+                }
+                ColumnWriter::DoubleColumnWriter(ref mut typed) => {
+                    let mut values = vec![];
+                    for field in col {
+                        def_level.push(1);
+                        values.push(*field.as_double().unwrap())
+                    }
+                    typed
+                        .write_batch(&values[..], Some(&def_level), None)
+                        .unwrap();
+                }
+                ColumnWriter::ByteArrayColumnWriter(ref mut typed) => {
+                    let mut values = vec![];
+                    for field in col {
+                        def_level.push(1);
+                        let field = (*field).clone();
+                        match field {
+                            Field::Binary(v) => {
+                                values.push(parquet::data_type::ByteArray::from(v.to_vec()))
+                            }
+                            Field::NChar(v) => {
+                                values.push(parquet::data_type::ByteArray::from(v.as_str()))
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    typed
+                        .write_batch(&values[..], Some(&def_level), None)
+                        .unwrap();
+                }
+                _ => unreachable!(),
             }
+            row_group_writer.close_column(writer).unwrap();
         }
-        writer.close_row_group(row_group_writer).unwrap();
     }
+    writer.close_row_group(row_group_writer).unwrap();
     writer.close().unwrap();
 }
 
-pub fn parquet_read(filename: &str) {
+pub fn parquet_read(filename: &str) -> u32 {
     let mut count = 0;
     let parquet_reader = SerializedFileReader::try_from(filename).unwrap();
     for _ in parquet_reader {
         count += 1;
         // println!("{:?}", row);
     }
-    println!("parquet read {} rows", count);
+    count
 }
